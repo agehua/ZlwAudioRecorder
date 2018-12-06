@@ -44,7 +44,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
         RecordManager.getInstance().init(MyApp.getInstance(), true);
-        RecordManager.getInstance().changeFormat(RecordConfig.RecordFormat.WAV);
+        RecordManager.getInstance().changeFormat(RecordConfig.RecordFormat.AAC);
         String recordDir = String.format(Locale.getDefault(),
                 "%s/Record/com.zlw.main/",
                 Environment.getExternalStorageDirectory().getAbsolutePath());
