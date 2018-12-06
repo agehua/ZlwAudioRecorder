@@ -3,9 +3,7 @@
 ###
 forked from [zhaolewei/ZlwAudioRecorder](https://github.com/zhaolewei/ZlwAudioRecorder)
 
-在源代码基础上加入 [AAC 格式](https://www.jianshu.com/p/648348d34570)支持
-
-参考工程 [printlybyte/AndroidPCMtoAACpushing](https://github.com/printlybyte/AndroidPCMtoAACpushing)
+在源代码基础上加入 [AAC 格式](https://www.jianshu.com/p/648348d34570) 支持，参考工程 [printlybyte/AndroidPCMtoAACpushing](https://github.com/printlybyte/AndroidPCMtoAACpushing)
 
 ### 功能
 1. 使用AudioRecord进行录音
@@ -14,16 +12,11 @@ forked from [zhaolewei/ZlwAudioRecorder](https://github.com/zhaolewei/ZlwAudioRe
 4. 实现mp3音频的录制
 5. 实时获取录音的音量
 6. 获取wav/mp3录音文件的时长
+7. 实现aac音频的录制
 
-### 博客
+### 原博客
 https://www.jianshu.com/p/c0222de2faed
 
-### Gradle
-[![](https://jitpack.io/v/zhaolewei/ZlwAudioRecorder.svg)](https://jitpack.io/#zhaolewei/ZlwAudioRecorder)
-
-    dependencies {
-	    implementation 'com.github.zhaolewei:ZlwAudioRecorder:1.0.2'
-	}
 ### 如何使用
 
 1. 初始化
