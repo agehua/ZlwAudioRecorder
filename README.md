@@ -1,5 +1,12 @@
 # ZlwAudioRecorder   
 
+###
+forked from [zhaolewei/ZlwAudioRecorder](https://github.com/zhaolewei/ZlwAudioRecorder)
+
+在源代码基础上加入 [AAC 格式](https://www.jianshu.com/p/648348d34570)支持
+
+参考工程 [printlybyte/AndroidPCMtoAACpushing](https://github.com/printlybyte/AndroidPCMtoAACpushing)
+
 ### 功能
 1. 使用AudioRecord进行录音
 2. 实现pcm音频的录制
