@@ -151,7 +151,11 @@ public class RecordConfig implements Serializable {
         /**
          * pcm格式
          */
-        PCM(".pcm");
+        PCM(".pcm"),
+        /**
+         * aac格式
+         */
+        AAC(".m4a");
 
         private String extension;
 

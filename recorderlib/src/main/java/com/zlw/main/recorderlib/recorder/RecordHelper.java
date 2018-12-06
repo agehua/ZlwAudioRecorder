@@ -1,11 +1,14 @@
 package com.zlw.main.recorderlib.recorder;
 
+import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
+import com.zlw.main.recorderlib.recorder.aac.AACEncoder;
 import com.zlw.main.recorderlib.recorder.listener.RecordDataListener;
 import com.zlw.main.recorderlib.recorder.listener.RecordResultListener;
 import com.zlw.main.recorderlib.recorder.listener.RecordSoundSizeListener;
@@ -21,12 +24,14 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @author zhaolewei on 2018/7/10.
@@ -84,12 +89,13 @@ public class RecordHelper {
         this.recordResultListener = recordResultListener;
     }
 
-    public void start(String filePath, RecordConfig config) {
+    public void start(String _filePath, RecordConfig config) {
         this.currentConfig = config;
         if (state != RecordState.IDLE) {
             Logger.e(TAG, "状态异常当前状态： %s", state.name());
             return;
         }
+        this.filePath = _filePath;
         resultFile = new File(filePath);
         String tempFilePath = getTempFilePath();
 
@@ -100,11 +106,15 @@ public class RecordHelper {
 
 
         tmpFile = new File(tempFilePath);
+        //1.开启录音线程并准备录音
         audioRecordThread = new AudioRecordThread();
         audioRecordThread.start();
     }
 
     public void stop() {
+        if (null!= mAACEncoder){
+            mAACEncoder.stop();
+        }
         if (state == RecordState.IDLE) {
             Logger.e(TAG, "状态异常当前状态： %s", state.name());
             return;
@@ -217,13 +227,40 @@ public class RecordHelper {
         private int bufferSize;
 
         AudioRecordThread() {
+            //2.根据录音参数构造AudioRecord实体对象
             bufferSize = AudioRecord.getMinBufferSize(currentConfig.getSampleRate(),
                     currentConfig.getChannelConfig(), currentConfig.getEncodingConfig()) * RECORD_AUDIO_BUFFER_TIMES;
             Logger.d(TAG, "record buffer size = %s", bufferSize);
-            audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, currentConfig.getSampleRate(),
-                    currentConfig.getChannelConfig(), currentConfig.getEncodingConfig(), bufferSize);
+
+            getValidBufferSize();
             if (currentConfig.getFormat() == RecordConfig.RecordFormat.MP3 && mp3EncodeThread == null) {
                 initMp3EncoderThread(bufferSize);
+            } else if (currentConfig.getFormat() == RecordConfig.RecordFormat.AAC) {
+                initAACEncoder();
+            }
+        }
+
+        public void getValidBufferSize() {
+            for (int rate : new int[]{44100, 22050, 11025, 16000, 8000}) {  // add the rates you wish to check against
+                int bufferSize = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_CONFIGURATION_DEFAULT, AudioFormat.ENCODING_PCM_16BIT);
+                if (bufferSize > 0) {
+                    // buffer size is valid, Sample rate supported
+                    Logger.d(TAG, "buffer size is valid, = %s" + bufferSize);
+                    /**
+                     * @param audioSource ：录音源
+                     * 这里选择使用麦克风：MediaRecorder.AudioSource.MIC
+                     * @param sampleRateInHz： 采样率
+                     * @param channelConfig：声道数
+                     * @param audioFormat： 采样位数.
+                     *   See {@link AudioFormat#ENCODING_PCM_8BIT}, {@link AudioFormat#ENCODING_PCM_16BIT},
+                     *   and {@link AudioFormat#ENCODING_PCM_FLOAT}.
+                     * @param bufferSizeInBytes： 音频录制的缓冲区大小
+                     *   See {@link #getMinBufferSize(int, int, int)}
+                     */
+                    audioRecord = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, currentConfig.getSampleRate(),
+                            currentConfig.getChannelConfig(), currentConfig.getEncodingConfig(), bufferSize);
+                    return;
+                }
             }
         }
 
@@ -232,6 +269,10 @@ public class RecordHelper {
             super.run();
 
             switch (currentConfig.getFormat()) {
+                case AAC:
+                    mAACEncoder.start();
+                    startAacRecorder();
+                    break;
                 case MP3:
                     startMp3Recorder();
                     break;
@@ -320,6 +361,55 @@ public class RecordHelper {
                 Logger.d(TAG, "暂停");
             }
         }
+
+        private void startAacRecorder() {
+            state = RecordState.RECORDING;
+            notifyState();
+
+            try {
+                if (null == audioRecord) {
+                    return;
+                }
+                audioRecord.startRecording();
+                byte[] byteBuffer = new byte[bufferSize];
+
+                while (state == RecordState.RECORDING) {
+                    int end = audioRecord.read(byteBuffer, 0, byteBuffer.length);
+                    if (mAACEncoder != null) {
+                        mAACEncoder.putAudioData(byteBuffer);
+                    }
+                    notifyData(byteBuffer);
+                }
+                audioRecord.stop();
+                if (state == RecordState.STOP) {
+                    makeFile();
+                } else {
+                    Logger.i(TAG, "暂停！");
+                }
+            } catch (Exception e) {
+                Logger.e(TAG, e.getMessage());
+                notifyError("录音失败");
+            } finally {
+                if (null != audioRecord) {
+                    audioRecord.release();
+                    audioRecord = null;
+                }
+                try {
+                    if (fos != null) {
+                        fos.close();
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (state != RecordState.PAUSE) {
+                state = RecordState.IDLE;
+                notifyState();
+            } else {
+                Logger.d(TAG, "暂停");
+            }
+
+        }
     }
 
     private void makeFile() {
@@ -332,6 +422,8 @@ public class RecordHelper {
                 break;
             case PCM:
                 mergePcmFile();
+                break;
+            case AAC:
                 break;
             default:
                 break;
@@ -447,6 +539,78 @@ public class RecordHelper {
          * 录音流程结束（转换结束）
          */
         FINISH
+    }
+
+
+    private LinkedBlockingQueue<Runnable> mRunnables = new LinkedBlockingQueue<>();
+
+
+    private Thread workThread;
+    private volatile boolean loop;
+
+    FileOutputStream fos = null;
+    private AACEncoder mAACEncoder;
+    private String filePath;
+
+    private void initAACEncoder(){
+        mAACEncoder = AACEncoder.newInstance(currentConfig);
+        if (null == resultFile){
+            resultFile = new File(filePath);
+        }
+        try {
+            fos = new FileOutputStream(resultFile);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        workThread = new Thread("publish-thread") {
+            @Override
+            public void run() {
+                while (loop && !Thread.interrupted()) {
+                    try {
+                        Runnable runnable = mRunnables.take();
+                        runnable.run();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                mRunnables.clear();
+                Log.d(TAG, "= =lgd= Rtmp发布线程退出...");
+            }
+        };
+
+        loop = true;
+        workThread.start();
+
+        mAACEncoder.setCallback(new AACEncoder.Callback() {
+
+            @Override
+            public void outputAudioData(final byte[] aac, final int len,final int nTimeStamp) {
+                Runnable runnable = new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.e(TAG, "outPutAACData len"+len);
+                        if (null!=fos) {
+                            try {
+                                fos.write(aac, 0, len);
+                                fos.flush();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+                };
+                try {
+                    mRunnables.put(runnable);
+                } catch (InterruptedException e) {
+                    Log.e(TAG, " =lgd= outputAudioData=====error: "+e.toString());
+                    e.printStackTrace();
+                }
+            }
+        });
+
+
     }
 
 }
