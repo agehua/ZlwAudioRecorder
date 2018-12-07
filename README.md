@@ -14,8 +14,10 @@ forked from [zhaolewei/ZlwAudioRecorder](https://github.com/zhaolewei/ZlwAudioRe
 6. 获取wav/mp3录音文件的时长
 7. 实现aac音频的录制
 
-### 原博客
-https://www.jianshu.com/p/c0222de2faed
+### 博客
+原博客: https://www.jianshu.com/p/c0222de2faed
+
+AAC实现: https://agehua.github.io/2018/12/06/Android-audio-introduction/
 
 ### 如何使用
 
